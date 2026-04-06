@@ -1,0 +1,126 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required, immutable)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, enum: ['admin', 'client'])
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: orders
+    // Document ID: {orderId}
+    // Fields:
+    //   - orderId: string (required, immutable)
+    //   - userUid: string (required, immutable)
+    //   - planId: string (required, immutable)
+    //   - planName: string (required, immutable)
+    //   - price: number (required, immutable)
+    //   - status: string (required, enum: ['pending', 'paid', 'completed'])
+    //   - paymentMethod: string (required, enum: ['paypal', 'bit', 'payoneer', 'bitcoin'])
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // Collection: messages
+    // Document ID: {messageId}
+    // Fields:
+    //   - name: string (required, max: 100)
+    //   - phone: string (required, max: 20)
+    //   - content: string (required, max: 1000)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "swif3478@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'client'] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidOrder(data) {
+      return hasRequiredFields(['userUid', 'planId', 'planName', 'price', 'status', 'paymentMethod', 'createdAt']) &&
+             data.userUid == request.auth.uid &&
+             data.price is number && data.price > 0 &&
+             data.status in ['pending', 'paid', 'completed'] &&
+             data.paymentMethod in ['paypal', 'bit', 'payoneer', 'bitcoin'] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidMessage(data) {
+      return hasRequiredFields(['name', 'phone', 'content', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() > 0 && data.phone.size() <= 20 &&
+             data.content is string && data.content.size() > 0 && data.content.size() <= 1000 &&
+             data.createdAt == request.time;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && isValidUser(request.resource.data) && request.resource.data.role == 'client';
+      allow update: if isOwner(uid) && 
+                      isValidUser(request.resource.data) && 
+                      request.resource.data.role == resource.data.role &&
+                      request.resource.data.email == resource.data.email;
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userUid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if isValidMessage(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}

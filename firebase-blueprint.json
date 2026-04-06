@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "client"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A purchase order for a web development plan.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "userUid": { "type": "string" },
+        "planId": { "type": "string" },
+        "planName": { "type": "string" },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "paid", "completed"] },
+        "paymentMethod": { "type": "string", "enum": ["paypal", "bit", "payoneer", "bitcoin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userUid", "planId", "price", "status", "paymentMethod"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A contact form message.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phone", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "Collection of user profiles."
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of purchase orders."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Collection of contact form submissions."
+    }
+  }
+}
